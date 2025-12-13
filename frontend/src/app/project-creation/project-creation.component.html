@@ -1,0 +1,142 @@
+<div class="container">
+  <div class="header">
+    <h1 class="title">TaseDreams</h1>
+    <p class="subtitle">Automated Project Onboarding</p>
+  </div>
+
+  <div class="form-container">
+    <form (ngSubmit)="onSubmit()" class="project-form">
+      <!-- Project Name -->
+      <div class="form-group">
+        <label for="projectName" class="form-label">Project Name</label>
+        <input
+          type="text"
+          id="projectName"
+          [(ngModel)]="projectName"
+          name="projectName"
+          class="form-input"
+          placeholder="Enter project name (lowercase, max {{ maxProjectNameLength }} chars)"
+          maxlength="{{ maxProjectNameLength }}"
+          required
+        />
+        <span class="char-count">{{ projectName.length }}/{{ maxProjectNameLength }}</span>
+      </div>
+
+      <!-- Development Team -->
+      <div class="form-group">
+        <label for="team" class="form-label">Development Team</label>
+        <select
+          id="team"
+          [(ngModel)]="selectedTeam"
+          name="team"
+          class="form-select"
+          required
+        >
+          <option value="">Select a team</option>
+          <option *ngFor="let team of teams" [value]="team">{{ team }}</option>
+        </select>
+      </div>
+
+      <!-- Project Lane Selection -->
+      <div class="form-group">
+        <label class="form-label">Project Lane</label>
+        <div class="lane-options">
+          <label
+            *ngFor="let lane of lanes"
+            class="lane-option"
+            [class.selected]="selectedLane?.id === lane.id"
+          >
+            <input
+              type="radio"
+              name="lane"
+              [value]="lane.id"
+              [checked]="selectedLane?.id === lane.id"
+              (change)="selectedLane = lane; onLaneChange()"
+            />
+            <div class="lane-info">
+              <span class="lane-name">{{ lane.name }}</span>
+              <span class="lane-stack">{{ lane.backendLanguage }} + {{ lane.frontendFramework }} + MSSQL</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Version Selection (shown after lane selection) -->
+      <div *ngIf="selectedLane" class="version-group">
+        <div class="form-group">
+          <label for="backendVersion" class="form-label">{{ selectedLane.backendLanguage | titlecase }} Version</label>
+          <select
+            id="backendVersion"
+            [(ngModel)]="selectedBackendVersion"
+            name="backendVersion"
+            class="form-select"
+            required
+          >
+            <option value="">Select version</option>
+            <option *ngFor="let version of backendVersions" [value]="version">{{ version }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="frontendVersion" class="form-label">{{ selectedLane.frontendFramework | titlecase }} Version</label>
+          <select
+            id="frontendVersion"
+            [(ngModel)]="selectedFrontendVersion"
+            name="frontendVersion"
+            class="form-select"
+            required
+          >
+            <option value="">Select version</option>
+            <option *ngFor="let version of frontendVersions" [value]="version">{{ version }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Infrastructure Services -->
+      <div class="form-group">
+        <label class="form-label">Infrastructure Services (Optional)</label>
+        <div class="infrastructure-options">
+          <label
+            *ngFor="let service of infrastructureServices"
+            class="infrastructure-option"
+            [class.selected]="isInfrastructureServiceSelected(service.id)"
+          >
+            <input
+              type="checkbox"
+              [checked]="isInfrastructureServiceSelected(service.id)"
+              (change)="toggleInfrastructureService(service.id)"
+            />
+            <span>{{ service.name }}</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Error Message -->
+      <div *ngIf="errorMessage" class="error-message">
+        <strong>{{ errorMessage }}</strong>
+        <div *ngIf="errorDetails" class="error-details">
+          <details>
+            <summary>Show technical details</summary>
+            <pre>{{ errorDetails }}</pre>
+          </details>
+        </div>
+      </div>
+
+      <!-- Success Message -->
+      <div *ngIf="successMessage" class="success-message">
+        {{ successMessage }}
+      </div>
+
+      <!-- Submit Button -->
+      <button
+        type="submit"
+        class="submit-button"
+        [disabled]="isSubmitting"
+      >
+        <span *ngIf="!isSubmitting">Create Project</span>
+        <span *ngIf="isSubmitting">Creating...</span>
+      </button>
+    </form>
+  </div>
+</div>
+

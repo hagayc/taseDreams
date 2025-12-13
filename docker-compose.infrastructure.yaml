@@ -1,0 +1,139 @@
+# Infrastructure Simulation Environment
+# Contains: Bitbucket, Confluence, Artifactory, LDAP Server
+# Note: OCP, ArgoCD, and Tekton typically run on Kubernetes/OCP itself
+# Run with: docker-compose -f docker-compose.infrastructure.yaml up -d
+# Memory Requirements: ~12-16 GB RAM (without OCP)
+
+services:
+  # Bitbucket Server
+  bitbucket:
+    build:
+      context: ./infra/bitbucket
+      dockerfile: Dockerfile
+    container_name: infrastructure-bitbucket
+    environment:
+      - SETUP_LICENSE=yes
+      - JVM_MINIMUM_MEMORY=1024m
+      - JVM_MAXIMUM_MEMORY=2048m
+      # Plugin download URLs (optional - if plugins are not in plugins/ directory)
+      - SCRIPTRUNNER_PLUGIN_URL=${SCRIPTRUNNER_PLUGIN_URL:-}
+      - CONTROLFREAK_PLUGIN_URL=${CONTROLFREAK_PLUGIN_URL:-}
+    ports:
+      - "${BITBUCKET_PORT:-7990}:7990"
+      - "${BITBUCKET_SSH_PORT:-7999}:7999"
+    volumes:
+      - bitbucket_data:/var/atlassian/application-data/bitbucket
+    networks:
+      - infrastructure-network
+    mem_limit: 4g
+    mem_reservation: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7990/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Confluence
+  confluence:
+    image: atlassian/confluence-server:latest
+    container_name: infrastructure-confluence
+    environment:
+      - ATL_TOMCAT_MGMTPORT=8000
+      - JVM_MINIMUM_MEMORY=1024m
+      - JVM_MAXIMUM_MEMORY=2048m
+    ports:
+      - "${CONFLUENCE_PORT:-8090}:8090"
+    volumes:
+      - confluence_data:/var/atlassian/application-data/confluence
+    networks:
+      - infrastructure-network
+    mem_limit: 4g
+    mem_reservation: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # JFrog Artifactory
+  artifactory:
+#    image: releases-docker.jfrog.io/jfrog/artifactory-oss:7.49.5
+    image: releases-docker.jfrog.io/jfrog/artifactory-pro:latest
+    container_name: infrastructure-artifactory
+    restart: unless-stopped
+    environment:
+#      - EXTRA_JAVA_OPTIONS=-Xms512m -Xmx2048m
+      - EXTRA_JAVA_OPTIONS=-Xms1g -Xmx3g
+      - JF_ARTIFACTORY_OPERATOR_ENABLED=false
+      - JF_ACCESS_OPERATOR_ENABLED=false
+      - ARTIFACTORY_ADMIN_USERNAME=${ARTIFACTORY_ADMIN_USERNAME:-admin}
+      - ARTIFACTORY_ADMIN_PASSWORD=${ARTIFACTORY_ADMIN_PASSWORD:-admin}
+    ports:
+      - "${ARTIFACTORY_PORT:-8081}:8081"
+      - "${ARTIFACTORY_PORT_8082:-8082}:8082"
+    volumes:
+      - artifactory_data:/var/opt/jfrog/artifactory
+    networks:
+      - infrastructure-network
+    mem_limit: 6g
+    mem_reservation: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/artifactory/api/system/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # LDAP Server (OpenLDAP)
+  ldap:
+    image: osixia/openldap:latest
+    container_name: infrastructure-ldap
+    environment:
+      - LDAP_ORGANISATION=${LDAP_ORGANISATION:-TaseDreams}
+      - LDAP_DOMAIN=${LDAP_DOMAIN:-tasedreams.local}
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD:-admin}
+      - LDAP_CONFIG_PASSWORD=${LDAP_CONFIG_PASSWORD:-config}
+      - LDAP_READONLY_USER=${LDAP_READONLY_USER:-false}
+    ports:
+      - "${LDAP_PORT:-389}:389"
+      - "${LDAP_SSL_PORT:-636}:636"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+    networks:
+      - infrastructure-network
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=tasedreams,dc=local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # LDAP Admin UI (phpLDAPadmin)
+  ldap-admin:
+    image: osixia/phpldapadmin:latest
+    container_name: infrastructure-ldap-admin
+    environment:
+      - PHPLDAPADMIN_LDAP_HOSTS=ldap
+      - PHPLDAPADMIN_HTTPS=false
+    ports:
+      - "${LDAP_ADMIN_PORT:-8080}:80"
+    depends_on:
+      - ldap
+    networks:
+      - infrastructure-network
+    mem_limit: 512m
+    mem_reservation: 256m
+
+volumes:
+  bitbucket_data:
+  confluence_data:
+  artifactory_data:
+  ldap_data:
+  ldap_config:
+
+networks:
+  infrastructure-network:
+    driver: bridge
+

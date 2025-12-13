@@ -1,0 +1,47 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+*.log
+
+# Angular
+node_modules/
+dist/
+.angular/
+*.log
+
+# Docker
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.mdf
+*.ldf
+
+# Build outputs
+**/bin/
+**/obj/
+**/dist/
+
+# Secrets
+*.key
+*.pem
+*.cert
+

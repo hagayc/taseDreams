@@ -1,0 +1,101 @@
+# TaseDreams Application Stack
+# Contains only: Frontend, Backend, and Database
+# Run with: docker-compose up -d
+
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: tasedreams-mssql
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${MSSQL_SA_PASSWORD:-TaseDreams2024!}
+      - MSSQL_PID=Developer
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - tasedreams-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/1433' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tasedreams-backend
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ConnectionStrings__DefaultConnection=Server=mssql,1433;Database=TaseDreams;User Id=sa;Password=${MSSQL_SA_PASSWORD:-TaseDreams2024!};TrustServerCertificate=True;
+      - AppSettings__MaxProjectNameLength=${MAX_PROJECT_NAME_LENGTH:-12}
+      - AppSettings__ProjectPrefix=${PROJECT_PREFIX:-oc-}
+      - AppSettings__CDRepoSuffix=${CD_REPO_SUFFIX:--cd}
+      - AppSettings__FrontendRepoSuffix=${FRONTEND_REPO_SUFFIX:--Fe}
+      - Bitbucket__BaseUrl=${BITBUCKET_BASE_URL}
+      - Bitbucket__Username=${BITBUCKET_USERNAME}
+      - Bitbucket__Password=${BITBUCKET_PASSWORD}
+      - Artifactory__DevUrl=${ARTIFACTORY_DEV_URL}
+      - Artifactory__PrdUrl=${ARTIFACTORY_PRD_URL}
+      - Artifactory__Username=${ARTIFACTORY_USERNAME}
+      - Artifactory__Password=${ARTIFACTORY_PASSWORD}
+      - ArgoCD__ConfigRepoUrl=${ARGOCD_CONFIG_REPO_URL}
+      - ArgoCD__ConfigRepoBranch=${ARGOCD_CONFIG_REPO_BRANCH:-main}
+      - ArgoCD__Username=${ARGOCD_USERNAME}
+      - ArgoCD__Password=${ARGOCD_PASSWORD}
+      - OCP__ApiUrl=${OCP_API_URL}
+      - OCP__Token=${OCP_TOKEN}
+      - Confluence__BaseUrl=${CONFLUENCE_BASE_URL}
+      - Confluence__Username=${CONFLUENCE_USERNAME}
+      - Confluence__Password=${CONFLUENCE_PASSWORD}
+      - Confluence__SpaceKey=${CONFLUENCE_SPACE_KEY}
+      - LDAP__Server=${LDAP_SERVER}
+      - LDAP__Port=${LDAP_PORT:-389}
+      - LDAP__UseSSL=${LDAP_USE_SSL:-false}
+      - LDAP__BaseDN=${LDAP_BASE_DN}
+      - LDAP__BindDN=${LDAP_BIND_DN}
+      - LDAP__BindPassword=${LDAP_BIND_PASSWORD}
+      - LDAP__UserFilter=${LDAP_USER_FILTER:-(sAMAccountName={0})}
+      - LDAP__GroupFilter=${LDAP_GROUP_FILTER:-(member={0})}
+    ports:
+      - "${BACKEND_PORT:-5000}:8080"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - tasedreams-network
+      - infrastructure-network
+    volumes:
+      - ./backend/TaseDreams.Api:/src:ro
+      - /app/bin
+      - /app/obj
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tasedreams-frontend
+    environment:
+      - API_URL=${API_URL:-http://backend:8080}
+    ports:
+      - "${FRONTEND_PORT:-4200}:80"
+    depends_on:
+      - backend
+    networks:
+      - tasedreams-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  mssql_data:
+
+networks:
+  tasedreams-network:
+    driver: bridge
+  infrastructure-network:
+    external: true
+    name: tasedreams_infrastructure-network

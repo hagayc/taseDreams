@@ -1,0 +1,10 @@
+# Place ScriptRunner and ControlFreak plugin JAR files here
+# 
+# Download from:
+# - ScriptRunner: https://marketplace.atlassian.com/apps/1212398/scriptrunner-for-bitbucket
+# - ControlFreak: https://marketplace.atlassian.com/apps/1212399/controlfreak-for-bitbucket
+#
+# Files should be named:
+# - scriptrunner.jar
+# - controlfreak.jar
+

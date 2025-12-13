@@ -1,0 +1,57 @@
+<div class="container">
+  <div class="header">
+    <h1 class="title">TaseDreams</h1>
+    <p class="subtitle">Project Management</p>
+  </div>
+
+  <div class="actions">
+    <button class="create-button" (click)="createNew()">Create New Project</button>
+  </div>
+
+  <div class="projects-container">
+    <div *ngIf="isLoading" class="loading">Loading projects...</div>
+    
+    <div *ngIf="!isLoading && projects.length === 0" class="empty-state">
+      <p>No projects found. Create your first project to get started.</p>
+    </div>
+
+    <div *ngIf="!isLoading && projects.length > 0" class="projects-grid">
+      <div *ngFor="let project of projects" class="project-card">
+        <div class="project-header">
+          <h3 class="project-name">{{ project.name }}</h3>
+          <span class="status-badge" [ngClass]="getStatusClass(project.status)">
+            {{ project.status }}
+          </span>
+        </div>
+        
+        <div class="project-details">
+          <div class="detail-item">
+            <span class="detail-label">Team:</span>
+            <span class="detail-value">{{ project.developmentTeam }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Lane:</span>
+            <span class="detail-value">{{ project.projectLane }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Backend:</span>
+            <span class="detail-value">{{ project.backendVersion }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Frontend:</span>
+            <span class="detail-value">{{ project.frontendVersion }}</span>
+          </div>
+          <div *ngIf="project.infrastructureServices.length > 0" class="detail-item">
+            <span class="detail-label">Services:</span>
+            <span class="detail-value">{{ project.infrastructureServices.join(', ') }}</span>
+          </div>
+        </div>
+
+        <div class="project-footer">
+          <span class="project-date">Created: {{ project.createdAt | date:'short' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
