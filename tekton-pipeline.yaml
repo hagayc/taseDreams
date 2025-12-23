@@ -130,7 +130,7 @@ spec:
       description: GitHub repository URL
     - name: git-revision
       description: Git revision (branch, tag, or commit)
-      default: "main"
+      default: "dockerfile-indent"
     - name: dockerhub-username
       description: DockerHub username
     - name: image-tag

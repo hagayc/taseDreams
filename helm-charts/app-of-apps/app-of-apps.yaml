@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/YOUR_GITHUB_USERNAME/oc-dreams-cd.git
-    targetRevision: main
+    targetRevision: dockerfile-indent
     path: helm-charts/tasedreams-backend
     helm:
       valueFiles:
@@ -36,7 +36,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/YOUR_GITHUB_USERNAME/oc-dreams-cd.git
-    targetRevision: main
+    targetRevision: dockerfile-indent
     path: helm-charts/tasedreams-frontend
     helm:
       valueFiles:

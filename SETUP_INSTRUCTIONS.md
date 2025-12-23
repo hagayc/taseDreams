@@ -76,6 +76,8 @@ The output will show the webhook URL (e.g., `http://el-github-listener-tasedream
 
 Create a new GitHub repository named `oc-dreams-cd` with the following structure:
 
+**Note:** This setup is configured to use the `dockerfile-indent` branch. Make sure to create and push to this branch in your CD repository.
+
 ```
 oc-dreams-cd/
 ├── app-of-apps/
@@ -112,7 +114,17 @@ oc-dreams-cd/
      repository: YOUR_DOCKERHUB_USERNAME/tasedreams-backend
    ```
 
-3. Commit and push to the `oc-dreams-cd` repository
+3. Create and switch to `dockerfile-indent` branch:
+   ```bash
+   git checkout -b dockerfile-indent
+   ```
+
+4. Commit and push to the `dockerfile-indent` branch in `oc-dreams-cd` repository:
+   ```bash
+   git add .
+   git commit -m "Initial CD configuration for dockerfile-indent branch"
+   git push -u origin dockerfile-indent
+   ```
 
 ## Step 6: Configure ArgoCD
 
