@@ -1,8 +1,8 @@
 # Infrastructure Simulation Environment
-# Contains: Bitbucket, Confluence, Artifactory, LDAP Server
+# Contains: Bitbucket, Confluence, LDAP Server
 # Note: OCP, ArgoCD, and Tekton typically run on Kubernetes/OCP itself
 # Run with: docker-compose -f docker-compose.infrastructure.yaml up -d
-# Memory Requirements: ~12-16 GB RAM (without OCP)
+# Memory Requirements: ~6-8 GB RAM (without OCP, without Artifactory)
 
 services:
   # Bitbucket Server
@@ -13,8 +13,8 @@ services:
     container_name: infrastructure-bitbucket
     environment:
       - SETUP_LICENSE=yes
-      - JVM_MINIMUM_MEMORY=1024m
-      - JVM_MAXIMUM_MEMORY=2048m
+      - JVM_MINIMUM_MEMORY=768m
+      - JVM_MAXIMUM_MEMORY=1536m
       # Plugin download URLs (optional - if plugins are not in plugins/ directory)
       - SCRIPTRUNNER_PLUGIN_URL=${SCRIPTRUNNER_PLUGIN_URL:-}
       - CONTROLFREAK_PLUGIN_URL=${CONTROLFREAK_PLUGIN_URL:-}
@@ -25,12 +25,32 @@ services:
       - bitbucket_data:/var/atlassian/application-data/bitbucket
     networks:
       - infrastructure-network
-    mem_limit: 4g
-    mem_reservation: 2g
+    mem_limit: 3g
+    mem_reservation: 1.5g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7990/status"]
       interval: 30s
       timeout: 10s
+      retries: 5
+
+  # PostgreSQL Database for Confluence
+  confluence-db:
+    image: postgres:15-alpine
+    container_name: infrastructure-confluence-db
+    environment:
+      - POSTGRES_DB=${CONFLUENCE_DB_NAME:-confluence}
+      - POSTGRES_USER=${CONFLUENCE_DB_USER:-confluence}
+      - POSTGRES_PASSWORD=${CONFLUENCE_DB_PASSWORD:-confluence}
+    volumes:
+      - confluence_db_data:/var/lib/postgresql/data
+    networks:
+      - infrastructure-network
+    mem_limit: 768m
+    mem_reservation: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CONFLUENCE_DB_USER:-confluence}"]
+      interval: 10s
+      timeout: 5s
       retries: 5
 
   # Confluence
@@ -39,50 +59,56 @@ services:
     container_name: infrastructure-confluence
     environment:
       - ATL_TOMCAT_MGMTPORT=8000
-      - JVM_MINIMUM_MEMORY=1024m
-      - JVM_MAXIMUM_MEMORY=2048m
+      - JVM_MINIMUM_MEMORY=768m
+      - JVM_MAXIMUM_MEMORY=1536m
+      # Database configuration
+      - ATL_JDBC_URL=jdbc:postgresql://confluence-db:5432/${CONFLUENCE_DB_NAME:-confluence}
+      - ATL_JDBC_USER=${CONFLUENCE_DB_USER:-confluence}
+      - ATL_JDBC_PASSWORD=${CONFLUENCE_DB_PASSWORD:-confluence}
+      - ATL_DB_TYPE=postgresql
     ports:
       - "${CONFLUENCE_PORT:-8090}:8090"
     volumes:
       - confluence_data:/var/atlassian/application-data/confluence
     networks:
       - infrastructure-network
-    mem_limit: 4g
-    mem_reservation: 2g
+    depends_on:
+      confluence-db:
+        condition: service_healthy
+    mem_limit: 3g
+    mem_reservation: 1.5g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/status"]
       interval: 30s
       timeout: 10s
       retries: 5
 
-  # JFrog Artifactory
-  artifactory:
-#    image: releases-docker.jfrog.io/jfrog/artifactory-oss:7.49.5
-    image: releases-docker.jfrog.io/jfrog/artifactory-pro:latest
-    container_name: infrastructure-artifactory
-    restart: unless-stopped
-    environment:
-#      - EXTRA_JAVA_OPTIONS=-Xms512m -Xmx2048m
-      - EXTRA_JAVA_OPTIONS=-Xms1g -Xmx3g
-      - JF_ARTIFACTORY_OPERATOR_ENABLED=false
-      - JF_ACCESS_OPERATOR_ENABLED=false
-      - ARTIFACTORY_ADMIN_USERNAME=${ARTIFACTORY_ADMIN_USERNAME:-admin}
-      - ARTIFACTORY_ADMIN_PASSWORD=${ARTIFACTORY_ADMIN_PASSWORD:-admin}
-    ports:
-      - "${ARTIFACTORY_PORT:-8081}:8081"
-      - "${ARTIFACTORY_PORT_8082:-8082}:8082"
-    volumes:
-      - artifactory_data:/var/opt/jfrog/artifactory
-    networks:
-      - infrastructure-network
-    mem_limit: 6g
-    mem_reservation: 3g
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/artifactory/api/system/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
+  # JFrog Artifactory (commented out - high memory usage)
+  # artifactory:
+  #   image: releases-docker.jfrog.io/jfrog/artifactory-pro:latest
+  #   container_name: infrastructure-artifactory
+  #   restart: unless-stopped
+  #   environment:
+  #     - EXTRA_JAVA_OPTIONS=-Xms1g -Xmx3g
+  #     - JF_ARTIFACTORY_OPERATOR_ENABLED=false
+  #     - JF_ACCESS_OPERATOR_ENABLED=false
+  #     - ARTIFACTORY_ADMIN_USERNAME=${ARTIFACTORY_ADMIN_USERNAME:-admin}
+  #     - ARTIFACTORY_ADMIN_PASSWORD=${ARTIFACTORY_ADMIN_PASSWORD:-admin}
+  #   ports:
+  #     - "${ARTIFACTORY_PORT:-8081}:8081"
+  #     - "${ARTIFACTORY_PORT_8082:-8082}:8082"
+  #   volumes:
+  #     - artifactory_data:/var/opt/jfrog/artifactory
+  #   networks:
+  #     - infrastructure-network
+  #   mem_limit: 6g
+  #   mem_reservation: 3g
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8081/artifactory/api/system/ping"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 120s
 
   # LDAP Server (OpenLDAP)
   ldap:
@@ -102,8 +128,8 @@ services:
       - ldap_config:/etc/ldap/slapd.d
     networks:
       - infrastructure-network
-    mem_limit: 1g
-    mem_reservation: 512m
+    mem_limit: 768m
+    mem_reservation: 384m
     healthcheck:
       test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=tasedreams,dc=local"]
       interval: 30s
@@ -123,13 +149,14 @@ services:
       - ldap
     networks:
       - infrastructure-network
-    mem_limit: 512m
-    mem_reservation: 256m
+    mem_limit: 384m
+    mem_reservation: 192m
 
 volumes:
   bitbucket_data:
   confluence_data:
-  artifactory_data:
+  confluence_db_data:
+  # artifactory_data:  # Commented out with Artifactory service
   ldap_data:
   ldap_config:
 
