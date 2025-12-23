@@ -1,0 +1,186 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dockerhub-secret
+  namespace: tasedreams-ci
+type: kubernetes.io/basic-auth
+stringData:
+  username: YOUR_DOCKERHUB_USERNAME
+  password: YOUR_DOCKERHUB_PASSWORD
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-sa
+  namespace: tasedreams-ci
+secrets:
+  - name: dockerhub-secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-role
+  namespace: tasedreams-ci
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "taskruns"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-rolebinding
+  namespace: tasedreams-ci
+subjects:
+  - kind: ServiceAccount
+    name: pipeline-sa
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pipeline-role
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-backend
+  namespace: tasedreams-ci
+spec:
+  params:
+    - name: DOCKERFILE_PATH
+      description: Path to Dockerfile
+      default: "backend/Dockerfile"
+    - name: CONTEXT_PATH
+      description: Build context path
+      default: "backend"
+    - name: IMAGE_NAME
+      description: Docker image name
+    - name: IMAGE_TAG
+      description: Docker image tag
+    - name: DOCKERHUB_USERNAME
+      description: DockerHub username
+  steps:
+    - name: build-and-push
+      image: gcr.io/kaniko-project/executor:latest
+      env:
+        - name: DOCKER_CONFIG
+          value: /tekton/home/.docker
+      command:
+        - /kaniko/executor
+      args:
+        - --dockerfile=$(params.DOCKERFILE_PATH)
+        - --context=$(params.CONTEXT_PATH)
+        - --destination=docker.io/$(params.DOCKERHUB_USERNAME)/$(params.IMAGE_NAME):$(params.IMAGE_TAG)
+        - --destination=docker.io/$(params.DOCKERHUB_USERNAME)/$(params.IMAGE_NAME):latest
+        - --skip-tls-verify
+      securityContext:
+        runAsUser: 0
+  workspaces:
+    - name: source
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-frontend
+  namespace: tasedreams-ci
+spec:
+  params:
+    - name: DOCKERFILE_PATH
+      description: Path to Dockerfile
+      default: "frontend/Dockerfile"
+    - name: CONTEXT_PATH
+      description: Build context path
+      default: "frontend"
+    - name: IMAGE_NAME
+      description: Docker image name
+    - name: IMAGE_TAG
+      description: Docker image tag
+    - name: DOCKERHUB_USERNAME
+      description: DockerHub username
+  steps:
+    - name: build-and-push
+      image: gcr.io/kaniko-project/executor:latest
+      env:
+        - name: DOCKER_CONFIG
+          value: /tekton/home/.docker
+      command:
+        - /kaniko/executor
+      args:
+        - --dockerfile=$(params.DOCKERFILE_PATH)
+        - --context=$(params.CONTEXT_PATH)
+        - --destination=docker.io/$(params.DOCKERHUB_USERNAME)/$(params.IMAGE_NAME):$(params.IMAGE_TAG)
+        - --destination=docker.io/$(params.DOCKERHUB_USERNAME)/$(params.IMAGE_NAME):latest
+        - --skip-tls-verify
+      securityContext:
+        runAsUser: 0
+  workspaces:
+    - name: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: tasedreams-cicd-pipeline
+  namespace: tasedreams-ci
+spec:
+  params:
+    - name: git-url
+      description: GitHub repository URL
+    - name: git-revision
+      description: Git revision (branch, tag, or commit)
+      default: "main"
+    - name: dockerhub-username
+      description: DockerHub username
+    - name: image-tag
+      description: Image tag (defaults to git commit SHA)
+      default: "latest"
+  workspaces:
+    - name: shared-workspace
+  tasks:
+    - name: fetch-source
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    - name: build-backend
+      runAfter:
+        - fetch-source
+      taskRef:
+        name: build-backend
+        kind: Task
+      params:
+        - name: IMAGE_NAME
+          value: "tasedreams-backend"
+        - name: IMAGE_TAG
+          value: $(params.image-tag)
+        - name: DOCKERHUB_USERNAME
+          value: $(params.dockerhub-username)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: build-frontend
+      runAfter:
+        - fetch-source
+      taskRef:
+        name: build-frontend
+        kind: Task
+      params:
+        - name: IMAGE_NAME
+          value: "tasedreams-frontend"
+        - name: IMAGE_TAG
+          value: $(params.image-tag)
+        - name: DOCKERHUB_USERNAME
+          value: $(params.dockerhub-username)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+

@@ -1,0 +1,138 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-secret
+  namespace: tasedreams-ci
+type: Opaque
+stringData:
+  secretToken: "YOUR_GITHUB_WEBHOOK_SECRET"
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: github-listener
+  namespace: tasedreams-ci
+spec:
+  serviceAccountName: pipeline-sa
+  triggers:
+    - name: github-push-trigger
+      interceptors:
+        - ref:
+            name: "github"
+          params:
+            - name: "secretRef"
+              value:
+                secretName: github-secret
+                secretKey: secretToken
+            - name: "eventTypes"
+              value: ["push", "pull_request"]
+      bindings:
+        - ref: github-push-binding
+      template:
+        ref: pipeline-template
+    - name: github-pr-trigger
+      interceptors:
+        - ref:
+            name: "github"
+          params:
+            - name: "secretRef"
+              value:
+                secretName: github-secret
+                secretKey: secretToken
+            - name: "eventTypes"
+              value: ["pull_request"]
+      bindings:
+        - ref: github-pr-binding
+      template:
+        ref: pipeline-template
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-push-binding
+  namespace: tasedreams-ci
+spec:
+  params:
+    - name: git-url
+      value: $(body.repository.clone_url)
+    - name: git-revision
+      value: $(body.head_commit.id)
+    - name: image-tag
+      value: $(body.head_commit.id)
+    - name: dockerhub-username
+      value: "YOUR_DOCKERHUB_USERNAME"
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-pr-binding
+  namespace: tasedreams-ci
+spec:
+  params:
+    - name: git-url
+      value: $(body.repository.clone_url)
+    - name: git-revision
+      value: $(body.pull_request.head.sha)
+    - name: image-tag
+      value: pr-$(body.pull_request.number)
+    - name: dockerhub-username
+      value: "YOUR_DOCKERHUB_USERNAME"
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: pipeline-template
+  namespace: tasedreams-ci
+spec:
+  params:
+    - name: git-url
+      description: GitHub repository URL
+    - name: git-revision
+      description: Git revision
+    - name: image-tag
+      description: Image tag
+    - name: dockerhub-username
+      description: DockerHub username
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: tasedreams-pipeline-run-
+      spec:
+        pipelineRef:
+          name: tasedreams-cicd-pipeline
+        params:
+          - name: git-url
+            value: $(tt.params.git-url)
+          - name: git-revision
+            value: $(tt.params.git-revision)
+          - name: image-tag
+            value: $(tt.params.image-tag)
+          - name: dockerhub-username
+            value: $(tt.params.dockerhub-username)
+        serviceAccountName: pipeline-sa
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: el-github-listener
+  namespace: tasedreams-ci
+spec:
+  selector:
+    eventlistener: github-listener
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
