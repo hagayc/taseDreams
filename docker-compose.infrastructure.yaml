@@ -83,33 +83,6 @@ services:
       timeout: 10s
       retries: 5
 
-  # JFrog Artifactory (commented out - high memory usage)
-  # artifactory:
-  #   image: releases-docker.jfrog.io/jfrog/artifactory-pro:latest
-  #   container_name: infrastructure-artifactory
-  #   restart: unless-stopped
-  #   environment:
-  #     - EXTRA_JAVA_OPTIONS=-Xms1g -Xmx3g
-  #     - JF_ARTIFACTORY_OPERATOR_ENABLED=false
-  #     - JF_ACCESS_OPERATOR_ENABLED=false
-  #     - ARTIFACTORY_ADMIN_USERNAME=${ARTIFACTORY_ADMIN_USERNAME:-admin}
-  #     - ARTIFACTORY_ADMIN_PASSWORD=${ARTIFACTORY_ADMIN_PASSWORD:-admin}
-  #   ports:
-  #     - "${ARTIFACTORY_PORT:-8081}:8081"
-  #     - "${ARTIFACTORY_PORT_8082:-8082}:8082"
-  #   volumes:
-  #     - artifactory_data:/var/opt/jfrog/artifactory
-  #   networks:
-  #     - infrastructure-network
-  #   mem_limit: 6g
-  #   mem_reservation: 3g
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8081/artifactory/api/system/ping"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 10
-  #     start_period: 120s
-
   # LDAP Server (OpenLDAP)
   ldap:
     image: osixia/openldap:latest
@@ -131,7 +104,7 @@ services:
     mem_limit: 768m
     mem_reservation: 384m
     healthcheck:
-      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=tasedreams,dc=local"]
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "", "-s", "base", "(objectclass=*)", "dn"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -156,7 +129,6 @@ volumes:
   bitbucket_data:
   confluence_data:
   confluence_db_data:
-  # artifactory_data:  # Commented out with Artifactory service
   ldap_data:
   ldap_config:
 

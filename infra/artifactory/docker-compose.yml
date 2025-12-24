@@ -1,0 +1,48 @@
+services:
+  artifactory:
+    image: releases-docker.jfrog.io/jfrog/artifactory-pro:7.104.15
+    container_name: artifactory
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    volumes:
+      - artifactory_data:/var/opt/jfrog/artifactory
+    environment:
+      - JF_SHARED_DATABASE_TYPE=postgresql
+      - JF_SHARED_DATABASE_USERNAME=artifactory
+      - JF_SHARED_DATABASE_PASSWORD=password
+      - JF_SHARED_DATABASE_URL=jdbc:postgresql://postgresql:5432/artifactory
+      - JF_SHARED_DATABASE_DRIVER=org.postgresql.Driver
+    depends_on:
+      - postgresql
+    networks:
+      - default
+      - infrastructure-network
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 32000
+        hard: 40000
+
+  postgresql:
+    image: postgres:13
+    container_name: postgresql
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=artifactory
+      - POSTGRES_USER=artifactory
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  artifactory_data:
+  postgresql_data:
+
+networks:
+  infrastructure-network:
+    external: true
+    name: tasedreams_infrastructure-network

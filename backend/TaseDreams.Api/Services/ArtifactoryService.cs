@@ -42,15 +42,29 @@ public class ArtifactoryService : IArtifactoryService
         // If URLs are empty, default to Docker service name
         if (string.IsNullOrEmpty(devUrl))
         {
-            devUrl = "http://artifactory:8081/artifactory";
+            devUrl = "http://artifactory:8081";
             _logger.LogInformation("Artifactory DevUrl not configured, using default Docker service name: {DevUrl}", devUrl);
         }
         
         if (string.IsNullOrEmpty(prdUrl))
         {
-            prdUrl = "http://artifactory:8081/artifactory";
+            prdUrl = "http://artifactory:8081";
             _logger.LogInformation("Artifactory PrdUrl not configured, using default Docker service name: {PrdUrl}", prdUrl);
         }
+        
+        // Ensure URLs don't end with /artifactory (RestSharp will handle it)
+        if (devUrl.EndsWith("/artifactory"))
+        {
+            devUrl = devUrl.Substring(0, devUrl.Length - "/artifactory".Length);
+        }
+        if (prdUrl.EndsWith("/artifactory"))
+        {
+            prdUrl = prdUrl.Substring(0, prdUrl.Length - "/artifactory".Length);
+        }
+        
+        // Remove trailing slashes to avoid double slashes in URL construction
+        devUrl = devUrl.TrimEnd('/');
+        prdUrl = prdUrl.TrimEnd('/');
         
         // Ensure both URLs use port 8081 (not 8082 which is router port)
         if (devUrl.Contains(":8082"))
@@ -85,6 +99,8 @@ public class ArtifactoryService : IArtifactoryService
             var devRequest = new RestRequest("/artifactory/api/repositories/{repoKey}", Method.Put);
             devRequest.AddHeader("Authorization", $"Basic {auth}");
             devRequest.AddHeader("Content-Type", "application/json");
+            // Remove Accept header that RestSharp might add automatically (causes 406 error)
+            devRequest.AddOrUpdateHeader("Accept", "*/*");
             devRequest.AddUrlSegment("repoKey", $"oc-{projectName}");
 
             var devBody = new
@@ -95,10 +111,14 @@ public class ArtifactoryService : IArtifactoryService
                 description = $"Docker repository for {projectName}"
             };
 
-            devRequest.AddJsonBody(devBody);
+            // Use StringBody instead of AddJsonBody to avoid RestSharp adding Accept: application/json
+            var jsonBody = JsonSerializer.Serialize(devBody);
+            devRequest.AddStringBody(jsonBody, ContentType.Json);
             
             _logger.LogInformation("Creating Artifactory dev repository: oc-{ProjectName} at {DevUrl}", projectName, _devClient.Options.BaseUrl);
+            _logger.LogInformation("Request URL: {RequestUrl}, Method: {Method}", _devClient.BuildUri(devRequest), devRequest.Method);
             var devResponse = await _devClient.ExecuteAsync(devRequest);
+            _logger.LogInformation("Response Status: {StatusCode}, Content: {Content}", devResponse.StatusCode, devResponse.Content?.Substring(0, Math.Min(200, devResponse.Content?.Length ?? 0)));
             
             if (!devResponse.IsSuccessful)
             {
@@ -122,6 +142,8 @@ public class ArtifactoryService : IArtifactoryService
             var prdRequest = new RestRequest("/artifactory/api/repositories/{repoKey}", Method.Put);
             prdRequest.AddHeader("Authorization", $"Basic {auth}");
             prdRequest.AddHeader("Content-Type", "application/json");
+            // Remove Accept header that RestSharp might add automatically (causes 406 error)
+            prdRequest.AddOrUpdateHeader("Accept", "*/*");
             prdRequest.AddUrlSegment("repoKey", $"oc-{projectName}-prd");
 
             var prdBody = new
@@ -132,7 +154,9 @@ public class ArtifactoryService : IArtifactoryService
                 description = $"Production Docker repository for {projectName}"
             };
 
-            prdRequest.AddJsonBody(prdBody);
+            // Use StringBody instead of AddJsonBody to avoid RestSharp adding Accept: application/json
+            var prdJsonBody = JsonSerializer.Serialize(prdBody);
+            prdRequest.AddStringBody(prdJsonBody, ContentType.Json);
             
             _logger.LogInformation("Creating Artifactory production repository: oc-{ProjectName}-prd at {PrdUrl}", projectName, _prdClient.Options.BaseUrl);
             var prdResponse = await _prdClient.ExecuteAsync(prdRequest);
